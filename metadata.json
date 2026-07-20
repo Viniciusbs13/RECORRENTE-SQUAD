@@ -1,0 +1,8 @@
+{
+  "name": "Remix: SQUAD",
+  "description": "Portal de alta conversão para consultoria premium e captação ativa de clientes High-Ticket.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
