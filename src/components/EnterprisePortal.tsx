@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Play,
+  Pause,
+  Lock,
   ArrowRight,
   TrendingDown,
   X,
@@ -67,14 +69,14 @@ interface VideoCase {
 const VIDEO_CASES: VideoCase[] = [
   {
     id: 'case-vid-1',
-    thumbnail: 'https://lh3.googleusercontent.com/d/120cVM-ig-ICR7osy79FJyoSfIUOeercR',
-    videoUrl: 'https://drive.google.com/file/d/120cVM-ig-ICR7osy79FJyoSfIUOeercR/preview',
+    thumbnail: 'https://vumbnail.com/1211874529.jpg',
+    videoUrl: 'https://player.vimeo.com/video/1211874529',
     caption: '',
   },
   {
     id: 'case-vid-2',
-    thumbnail: 'https://lh3.googleusercontent.com/d/1C-OhEMWfvljOOE6ezov3SqOqaufa0Qyw',
-    videoUrl: 'https://drive.google.com/file/d/1C-OhEMWfvljOOE6ezov3SqOqaufa0Qyw/preview',
+    thumbnail: 'https://vumbnail.com/1211874832.jpg',
+    videoUrl: 'https://player.vimeo.com/video/1211874832',
     caption: '',
   },
 ];
@@ -111,37 +113,65 @@ export default function EnterprisePortal({
   const [isMobile, setIsMobile] = useState(false);
   const reducedMotion = useReducedMotion();
 
-  // Custom states for unpausable VSL player
+  // Vimeo VSL Player references and states
+  const vslIframeRef = useRef<HTMLIFrameElement>(null);
   const [vslStarted, setVslStarted] = useState(true);
   const [vslTime, setVslTime] = useState(0);
-  const [vslIframeUrl, setVslIframeUrl] = useState("https://drive.google.com/file/d/1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X/preview?autoplay=1&loop=1&playlist=1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X");
+  const [isVslPaused, setIsVslPaused] = useState(false);
+  
+  // Vimeo Embed URL with loop=1 and api=1
+  const vslIframeUrl = "https://player.vimeo.com/video/1211871336?autoplay=1&loop=1&autopause=0&muted=0&api=1";
+
+  // Pause unlock threshold: 1 min 20s = 80 seconds
+  const canPause = vslTime >= 80;
+
+  const sendVimeoCommand = (method: string, value?: number) => {
+    if (vslIframeRef.current && vslIframeRef.current.contentWindow) {
+      vslIframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ method, ...(value !== undefined ? { value } : {}) }),
+        '*'
+      );
+    }
+  };
+
+  const toggleVslPause = () => {
+    if (!canPause) return;
+    if (isVslPaused) {
+      sendVimeoCommand('play');
+      setIsVslPaused(false);
+    } else {
+      sendVimeoCommand('pause');
+      setIsVslPaused(true);
+    }
+  };
 
   useEffect(() => {
-    if (!vslStarted) return;
+    if (!vslStarted || isVslPaused) return;
     const interval = setInterval(() => {
       setVslTime((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [vslStarted]);
+  }, [vslStarted, isVslPaused]);
 
   useEffect(() => {
     if (vslTime >= 60 && !vslUnlocked) {
       onUnlockVsl();
-    }
-    if (vslTime >= 87) {
-      handleVslRestart();
     }
   }, [vslTime, vslUnlocked, onUnlockVsl]);
 
   const handleVslRewind = () => {
     const newTime = Math.max(0, vslTime - 10);
     setVslTime(newTime);
-    setVslIframeUrl(`https://drive.google.com/file/d/1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X/preview?autoplay=1&loop=1&playlist=1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X&t=${newTime}s&start=${newTime}`);
+    sendVimeoCommand('setCurrentTime', newTime);
   };
 
   const handleVslRestart = () => {
     setVslTime(0);
-    setVslIframeUrl(`https://drive.google.com/file/d/1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X/preview?autoplay=1&loop=1&playlist=1HV4V4TbI0O3PJJzxh1L-lZZDUlOrVX8X&t=0s&start=0`);
+    sendVimeoCommand('setCurrentTime', 0);
+    if (isVslPaused) {
+      sendVimeoCommand('play');
+      setIsVslPaused(false);
+    }
   };
 
   const formatVslTime = (totalSeconds: number) => {
@@ -485,12 +515,41 @@ export default function EnterprisePortal({
                 ) : (
                   <>
                     <iframe
+                      ref={vslIframeRef}
                       src={vslIframeUrl}
-                      className="absolute w-full h-[142%] -top-[31%] left-0 border-0 sm:inset-0 sm:w-full sm:h-full sm:top-0 sm:translate-y-0 sm:scale-100"
-                      allow="autoplay; fullscreen"
+                      className="absolute inset-0 w-full h-full border-0 pointer-events-none"
+                      allow="autoplay; fullscreen; picture-in-picture"
                       allowFullScreen
-                      sandbox="allow-scripts allow-same-origin allow-presentation"
                     />
+
+                    {/* Protective Overlay & Pause/Play Interactivity */}
+                    {!canPause ? (
+                      /* First 80s (1m 20s): Protective transparent overlay blocking user clicks and pause */
+                      <div 
+                        className="absolute inset-0 z-20 cursor-default"
+                        title="Os controles de pausa serão liberados após 1m 20s de vídeo."
+                      />
+                    ) : (
+                      /* After 80s: Interactive overlay allowing click on video to toggle Pause / Play */
+                      <div 
+                        onClick={toggleVslPause}
+                        className="absolute inset-0 z-20 cursor-pointer"
+                      >
+                        {isVslPaused && (
+                          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#f3e5ab] flex items-center justify-center mb-4 shadow-2xl animate-pulse">
+                              <Play className="w-8 h-8 fill-current ml-1" />
+                            </div>
+                            <p className="text-base sm:text-xl font-bold text-white font-sans tracking-tight">
+                              Vídeo Pausado
+                            </p>
+                            <p className="text-xs sm:text-sm text-[#f3e5ab] font-medium mt-1 font-sans">
+                              Clique para continuar assistindo
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -499,14 +558,47 @@ export default function EnterprisePortal({
               <div className="mt-3 px-3 py-2 sm:px-4 sm:py-2.5 bg-black/40 rounded-xl border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
                 {/* Time Indicator */}
                 <div className="flex items-center gap-2 text-white/55 font-mono text-[11px] sm:text-xs">
-                  <span className={`w-2 h-2 rounded-full ${vslStarted ? 'bg-emerald-500 animate-pulse' : 'bg-white/20'}`} />
+                  <span className={`w-2 h-2 rounded-full ${vslStarted && !isVslPaused ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
                   <span>
-                    {vslStarted ? `REPRODUZINDO: ${formatVslTime(vslTime)}` : 'PRONTO PARA REPRODUZIR'}
+                    {vslStarted 
+                      ? isVslPaused 
+                        ? `PAUSADO EM: ${formatVslTime(vslTime)}`
+                        : `REPRODUZINDO: ${formatVslTime(vslTime)}` 
+                      : 'PRONTO PARA REPRODUZIR'}
                   </span>
                 </div>
                 
                 {/* Controls */}
                 <div className="flex items-center gap-2">
+                  {/* Pause / Continue Button (Unlocked after 1m 20s) */}
+                  {canPause ? (
+                    <button
+                      onClick={toggleVslPause}
+                      disabled={!vslStarted}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#d4af37]/15 hover:bg-[#d4af37]/25 text-[#f3e5ab] text-[11px] sm:text-xs font-semibold border border-[#d4af37]/30 transition-all cursor-pointer active:scale-95"
+                    >
+                      {isVslPaused ? (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Continuar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="w-3.5 h-3.5 fill-current" />
+                          <span>Pausar</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div 
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-[10px] sm:text-[11px] font-mono border border-white/5 select-none"
+                      title="Pausar será liberado em 01:20"
+                    >
+                      <Lock className="w-3 h-3 text-[#d4af37]" />
+                      <span>Pausar em 01:20</span>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleVslRewind}
                     disabled={!vslStarted}
@@ -1206,9 +1298,9 @@ export default function EnterprisePortal({
                 <div className="relative aspect-video bg-[#0d1e4a]/40 overflow-hidden">
                   {playingVideoId === v.id ? (
                     <iframe
-                      src={`${v.videoUrl}?autoplay=1`}
-                      className="absolute w-full h-[142%] -top-[31%] left-0 border-0 rounded-3xl sm:inset-0 sm:w-full sm:h-full sm:top-0 sm:translate-y-0 sm:scale-100"
-                      allow="autoplay; encrypted-media"
+                      src={`${v.videoUrl}?autoplay=1&autopause=0`}
+                      className="absolute inset-0 w-full h-full border-0 rounded-3xl"
+                      allow="autoplay; fullscreen; picture-in-picture"
                       allowFullScreen
                       referrerPolicy="no-referrer"
                     />

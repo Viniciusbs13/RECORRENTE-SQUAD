@@ -7,14 +7,9 @@ import { PAIN_POINTS, METHOD_PILLARS, TIMELINE_STEPS, BENEFITS, SUCCESS_CASES, F
 
 // Component imports
 import EnterprisePortal from './components/EnterprisePortal';
-import LeadGateway from './components/LeadGateway';
 
 export default function App() {
   // --- STATES ---
-  const [isUnlocked, setIsUnlocked] = useState(() => {
-    return localStorage.getItem('squad_unlocked') === 'true';
-  });
-  
   const [sliderVal, setSliderVal] = useState(65); 
   const [vslPlaying, setVslPlaying] = useState(false);
   const [vslProgress, setVslProgress] = useState(5); 
@@ -122,32 +117,6 @@ export default function App() {
     opacity: 0.2 + Math.random() * 0.4
   }));
 
-  // Gating screen handling
-  if (!isUnlocked) {
-    return (
-      <div className="relative min-h-screen bg-[#02050e] text-white font-sans overflow-x-hidden selection:bg-[#d4af37] selection:text-black">
-        {/* Dynamic Floating Golden Particles Overlay */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
-          {particles.map((p) => (
-            <div
-              key={p.id}
-              className="particle"
-              style={{
-                left: p.left,
-                animation: `floatUp ${p.animationDuration} linear infinite`,
-                animationDelay: p.animationDelay,
-                opacity: p.opacity,
-              }}
-            />
-          ))}
-        </div>
-        <div className="relative z-10">
-          <LeadGateway onUnlock={() => setIsUnlocked(true)} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative min-h-screen bg-[#02050e] text-white font-sans overflow-x-hidden selection:bg-[#d4af37] selection:text-black">
       
@@ -202,19 +171,6 @@ export default function App() {
           onToggleFaq={toggleFaq}
           faqs={FAQS}
         />
-      </div>
-
-      {/* Subtle Reset Link in Footer style to re-gate for testing */}
-      <div className="absolute bottom-4 left-4 z-50 opacity-20 hover:opacity-100 transition-opacity">
-        <button
-          onClick={() => {
-            localStorage.removeItem('squad_unlocked');
-            setIsUnlocked(false);
-          }}
-          className="text-[10px] font-mono text-[#d4af37] border border-[#d4af37]/30 bg-black/40 px-2 py-1 rounded cursor-pointer"
-        >
-          [Dev Reset Gate]
-        </button>
       </div>
 
     </div>
