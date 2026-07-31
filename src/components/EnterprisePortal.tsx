@@ -120,9 +120,10 @@ export default function EnterprisePortal({
   const [vslStarted, setVslStarted] = useState(true);
   const [vslTime, setVslTime] = useState(0);
   const [isVslPaused, setIsVslPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   
-  // Vimeo Embed URL with loop=1, muted=0, volume=1 and api=1
-  const vslIframeUrl = "https://player.vimeo.com/video/1211871336?autoplay=1&loop=1&autopause=0&muted=0&volume=1&api=1";
+  // Vimeo Embed URL with muted=1 to comply 100% with Chrome Autoplay Policy (prevents browser freezing)
+  const vslIframeUrl = "https://player.vimeo.com/video/1211871336?autoplay=1&loop=1&autopause=0&muted=1&playsinline=1&api=1";
 
   // Pause unlock threshold: 1 min 20s = 80 seconds
   const canPause = vslTime >= 80;
@@ -136,20 +137,19 @@ export default function EnterprisePortal({
     }
   };
 
-  const ensureSound = () => {
+  const handleEnableSound = () => {
     sendVimeoCommand('setMuted', 0);
     sendVimeoCommand('setVolume', 1);
     sendVimeoCommand('play');
-  };
-
-  useEffect(() => {
-    if (vslStarted) {
-      const timer = setTimeout(() => {
-        ensureSound();
-      }, 800);
-      return () => clearTimeout(timer);
+    setIsMuted(false);
+    if (!vslStarted) {
+      setVslStarted(true);
     }
-  }, [vslStarted]);
+    if (isVslPaused) {
+      setIsVslPaused(false);
+      sendVimeoCommand('play');
+    }
+  };
 
   const toggleVslPause = () => {
     if (!canPause) return;
@@ -539,33 +539,60 @@ export default function EnterprisePortal({
                       allowFullScreen
                     />
 
-                    {/* Protective Overlay & Pause/Play Interactivity */}
-                    {!canPause ? (
-                      /* First 80s (1m 20s): Protective transparent overlay blocking user clicks and pause */
+                    {/* Muted overlay for browser autoplay policy compliance */}
+                    {isMuted && (
                       <div 
-                        className="absolute inset-0 z-20 cursor-default"
-                        title="Os controles de pausa serão liberados após 1m 20s de vídeo."
-                      />
-                    ) : (
-                      /* After 80s: Interactive overlay allowing click on video to toggle Pause / Play */
-                      <div 
-                        onClick={toggleVslPause}
-                        className="absolute inset-0 z-20 cursor-pointer"
+                        onClick={handleEnableSound}
+                        className="absolute inset-0 z-30 bg-black/40 hover:bg-black/25 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-4 cursor-pointer transition-all duration-300 group"
                       >
-                        {isVslPaused && (
-                          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#f3e5ab] flex items-center justify-center mb-4 shadow-2xl animate-pulse">
-                              <Play className="w-8 h-8 fill-current ml-1" />
-                            </div>
-                            <p className="text-base sm:text-xl font-bold text-white font-sans tracking-tight">
-                              Vídeo Pausado
-                            </p>
-                            <p className="text-xs sm:text-sm text-[#f3e5ab] font-medium mt-1 font-sans">
-                              Clique para continuar assistindo
-                            </p>
-                          </div>
-                        )}
+                        <motion.div
+                          animate={{ scale: [1, 1.08, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#d4af37]/20 border-2 border-[#d4af37] text-[#f3e5ab] flex items-center justify-center shadow-[0_0_35px_rgba(212,175,55,0.4)] group-hover:scale-110 transition-transform"
+                        >
+                          <VolumeX className="w-8 h-8 sm:w-10 sm:h-10 text-[#f3e5ab] animate-pulse" />
+                        </motion.div>
+                        <div className="mt-4 px-4 py-2 rounded-full bg-black/85 border border-[#d4af37]/60 shadow-2xl backdrop-blur-md">
+                          <p className="text-xs sm:text-base font-bold text-white flex items-center gap-2 font-sans tracking-wide">
+                            <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#d4af37] animate-bounce" />
+                            <span>SEU VÍDEO JÁ COMEÇOU — CLIQUE PARA ATIVAR O SOM</span>
+                          </p>
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-[#f3e5ab]/80 mt-2 font-sans font-medium">
+                          (Clique em qualquer lugar do vídeo para ouvir o áudio)
+                        </p>
                       </div>
+                    )}
+
+                    {/* Protective Overlay & Pause/Play Interactivity (Active when unmuted) */}
+                    {!isMuted && (
+                      !canPause ? (
+                        /* First 80s (1m 20s): Protective transparent overlay blocking user clicks and pause */
+                        <div 
+                          className="absolute inset-0 z-20 cursor-default"
+                          title="Os controles de pausa serão liberados após 1m 20s de vídeo."
+                        />
+                      ) : (
+                        /* After 80s: Interactive overlay allowing click on video to toggle Pause / Play */
+                        <div 
+                          onClick={toggleVslPause}
+                          className="absolute inset-0 z-20 cursor-pointer"
+                        >
+                          {isVslPaused && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#f3e5ab] flex items-center justify-center mb-4 shadow-2xl animate-pulse">
+                                <Play className="w-8 h-8 fill-current ml-1" />
+                              </div>
+                              <p className="text-base sm:text-xl font-bold text-white font-sans tracking-tight">
+                                Vídeo Pausado
+                              </p>
+                              <p className="text-xs sm:text-sm text-[#f3e5ab] font-medium mt-1 font-sans">
+                                Clique para continuar assistindo
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )
                     )}
                   </>
                 )}
@@ -587,17 +614,28 @@ export default function EnterprisePortal({
                 
                 {/* Controls */}
                 <div className="flex items-center gap-2">
-                  {/* Sound On Button */}
-                  <button
-                    onClick={ensureSound}
-                    disabled={!vslStarted}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-[11px] sm:text-xs font-semibold border border-emerald-500/30 transition-all cursor-pointer active:scale-95"
-                    title="Ativar ou garantir o som no vídeo"
-                  >
-                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline">Som Ativado</span>
-                    <span className="sm:hidden">Som</span>
-                  </button>
+                  {/* Sound Toggle Button */}
+                  {isMuted ? (
+                    <button
+                      onClick={handleEnableSound}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d4af37]/20 hover:bg-[#d4af37]/30 text-[#f3e5ab] text-[11px] sm:text-xs font-bold border border-[#d4af37]/50 transition-all cursor-pointer animate-pulse active:scale-95 shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                      title="Clique para ativar o som do vídeo"
+                    >
+                      <VolumeX className="w-3.5 h-3.5 text-[#f3e5ab]" />
+                      <span>Ativar Som</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleEnableSound}
+                      disabled={!vslStarted}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-[11px] sm:text-xs font-semibold border border-emerald-500/30 transition-all cursor-pointer active:scale-95"
+                      title="Som ativado"
+                    >
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="hidden sm:inline">Som Ativado</span>
+                      <span className="sm:hidden">Som</span>
+                    </button>
+                  )}
 
                   {/* Pause / Continue Button (Unlocked after 1m 20s) */}
                   {canPause ? (
