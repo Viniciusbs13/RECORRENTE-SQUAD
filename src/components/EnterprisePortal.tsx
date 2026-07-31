@@ -4,6 +4,8 @@ import {
   Play,
   Pause,
   Lock,
+  Volume2,
+  VolumeX,
   ArrowRight,
   TrendingDown,
   X,
@@ -119,8 +121,8 @@ export default function EnterprisePortal({
   const [vslTime, setVslTime] = useState(0);
   const [isVslPaused, setIsVslPaused] = useState(false);
   
-  // Vimeo Embed URL with loop=1 and api=1
-  const vslIframeUrl = "https://player.vimeo.com/video/1211871336?autoplay=1&loop=1&autopause=0&muted=0&api=1";
+  // Vimeo Embed URL with loop=1, muted=0, volume=1 and api=1
+  const vslIframeUrl = "https://player.vimeo.com/video/1211871336?autoplay=1&loop=1&autopause=0&muted=0&volume=1&api=1";
 
   // Pause unlock threshold: 1 min 20s = 80 seconds
   const canPause = vslTime >= 80;
@@ -133,6 +135,21 @@ export default function EnterprisePortal({
       );
     }
   };
+
+  const ensureSound = () => {
+    sendVimeoCommand('setMuted', 0);
+    sendVimeoCommand('setVolume', 1);
+    sendVimeoCommand('play');
+  };
+
+  useEffect(() => {
+    if (vslStarted) {
+      const timer = setTimeout(() => {
+        ensureSound();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [vslStarted]);
 
   const toggleVslPause = () => {
     if (!canPause) return;
@@ -570,6 +587,18 @@ export default function EnterprisePortal({
                 
                 {/* Controls */}
                 <div className="flex items-center gap-2">
+                  {/* Sound On Button */}
+                  <button
+                    onClick={ensureSound}
+                    disabled={!vslStarted}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-[11px] sm:text-xs font-semibold border border-emerald-500/30 transition-all cursor-pointer active:scale-95"
+                    title="Ativar ou garantir o som no vídeo"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Som Ativado</span>
+                    <span className="sm:hidden">Som</span>
+                  </button>
+
                   {/* Pause / Continue Button (Unlocked after 1m 20s) */}
                   {canPause ? (
                     <button
