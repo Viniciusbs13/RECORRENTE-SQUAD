@@ -151,6 +151,23 @@ export default function EnterprisePortal({
     }
   };
 
+  // Global document listener to activate sound on ANY click/touch on the entire page
+  useEffect(() => {
+    if (!isMuted) return;
+
+    const handleGlobalClick = () => {
+      handleEnableSound();
+    };
+
+    window.addEventListener('click', handleGlobalClick, { capture: true, once: true });
+    window.addEventListener('touchstart', handleGlobalClick, { capture: true, once: true });
+
+    return () => {
+      window.removeEventListener('click', handleGlobalClick, { capture: true });
+      window.removeEventListener('touchstart', handleGlobalClick, { capture: true });
+    };
+  }, [isMuted]);
+
   const toggleVslPause = () => {
     if (!canPause) return;
     if (isVslPaused) {
@@ -559,7 +576,7 @@ export default function EnterprisePortal({
                           </p>
                         </div>
                         <p className="text-[10px] sm:text-xs text-[#f3e5ab]/80 mt-2 font-sans font-medium">
-                          (Clique em qualquer lugar do vídeo para ouvir o áudio)
+                          (Clique em qualquer lugar da tela para ouvir o áudio)
                         </p>
                       </div>
                     )}
